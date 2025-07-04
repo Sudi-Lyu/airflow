@@ -19,13 +19,14 @@
 import {
   Badge,
   Box,
+  ButtonGroup,
   createListCollection,
   HStack,
   IconButton,
   type SelectValueChangeDetails,
 } from "@chakra-ui/react";
 import { useCallback } from "react";
-import { MdOutlineOpenInFull } from "react-icons/md";
+import { MdCompress, MdExpand, MdOutlineOpenInFull } from "react-icons/md";
 import { useSearchParams } from "react-router-dom";
 
 import type { TaskInstanceResponse } from "openapi/requests/types.gen";
@@ -36,10 +37,12 @@ import { system } from "src/theme";
 import { type LogLevel, logLevelColorMapping, logLevelOptions } from "src/utils/logs";
 
 type Props = {
+  readonly expanded?: boolean;
   readonly isFullscreen?: boolean;
   readonly onSelectTryNumber: (tryNumber: number) => void;
   readonly sourceOptions?: Array<string>;
   readonly taskInstance?: TaskInstanceResponse;
+  readonly toggleExpanded?: () => void;
   readonly toggleFullscreen: () => void;
   readonly toggleWrap: () => void;
   readonly tryNumber?: number;
@@ -47,10 +50,12 @@ type Props = {
 };
 
 export const TaskLogHeader = ({
+  expanded,
   isFullscreen = false,
   onSelectTryNumber,
   sourceOptions,
   taskInstance,
+  toggleExpanded,
   toggleFullscreen,
   toggleWrap,
   tryNumber,
@@ -120,7 +125,7 @@ export const TaskLogHeader = ({
           taskInstance={taskInstance}
         />
       )}
-      <HStack justifyContent="space-between" mb={2}>
+      <HStack justifyContent="space-between">
         <Select.Root
           collection={logLevelOptions}
           maxW="250px"
@@ -183,11 +188,38 @@ export const TaskLogHeader = ({
             <Button
               aria-label={wrap ? "Unwrap" : "Wrap"}
               bg="bg.panel"
+              m={0}
               onClick={toggleWrap}
+              px={4}
+              py={2}
               variant="outline"
             >
               {wrap ? "Unwrap" : "Wrap"}
             </Button>
+          </Tooltip>
+          <Tooltip closeDelay={100} content={"Press e to toggle expand"} openDelay={100}>
+            <ButtonGroup attached size="md" variant="outline">
+              <IconButton
+                aria-label={"Expand"}
+                bg="bg.panel"
+                disabled={expanded}
+                onClick={expanded ? undefined : toggleExpanded}
+                size="md"
+                variant="surface"
+              >
+                <MdExpand />
+              </IconButton>
+              <IconButton
+                aria-label={"Collapse"}
+                bg="bg.panel"
+                disabled={!expanded}
+                onClick={expanded ? toggleExpanded : undefined}
+                size="md"
+                variant="outline"
+              >
+                <MdCompress />
+              </IconButton>
+            </ButtonGroup>
           </Tooltip>
           {!isFullscreen && (
             <Tooltip closeDelay={100} content="Press f for fullscreen" openDelay={100}>
