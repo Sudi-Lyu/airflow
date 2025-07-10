@@ -32,6 +32,8 @@ type Props = {
   dagId: string;
   expanded?: boolean;
   logLevelFilters?: Array<string>;
+  showSource?: boolean;
+  showTimestamp?: boolean;
   sourceFilters?: Array<string>;
   taskInstance?: TaskInstanceResponse;
   tryNumber?: number;
@@ -41,6 +43,8 @@ type ParseLogsProps = {
   data: TaskInstancesLogResponse["content"];
   expanded?: boolean;
   logLevelFilters?: Array<string>;
+  showSource?: boolean;
+  showTimestamp?: boolean;
   sourceFilters?: Array<string>;
   taskInstance?: TaskInstanceResponse;
   tryNumber: number;
@@ -50,6 +54,8 @@ const parseLogs = ({
   data,
   expanded,
   logLevelFilters,
+  showSource,
+  showTimestamp,
   sourceFilters,
   taskInstance,
   tryNumber,
@@ -71,7 +77,15 @@ const parseLogs = ({
         }
       }
 
-      return renderStructuredLog({ index, logLevelFilters, logLink, logMessage: datum, sourceFilters });
+      return renderStructuredLog({
+        index,
+        logLevelFilters,
+        logLink,
+        logMessage: datum,
+        showSource,
+        showTimestamp,
+        sourceFilters,
+      });
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "An error occurred.";
@@ -163,6 +177,8 @@ export const useLogs = (
     dagId,
     expanded,
     logLevelFilters,
+    showSource,
+    showTimestamp,
     sourceFilters,
     taskInstance,
     tryNumber = 1,
@@ -196,6 +212,8 @@ export const useLogs = (
     data: data?.content ?? [],
     expanded,
     logLevelFilters,
+    showSource,
+    showTimestamp,
     sourceFilters,
     taskInstance,
     tryNumber,
