@@ -26,6 +26,7 @@ import type { TaskInstanceResponse, TaskInstancesLogResponse } from "openapi/req
 import { renderStructuredLog } from "src/components/renderStructuredLog";
 import { isStatePending, useAutoRefresh } from "src/utils";
 import { getTaskInstanceLink } from "src/utils/links";
+import { parseStreamingLogContent } from "src/utils/logs";
 
 type Props = {
   accept?: "*/*" | "application/json" | "application/x-ndjson";
@@ -173,7 +174,7 @@ const parseLogs = ({
 
 export const useLogs = (
   {
-    accept = "application/json",
+    accept = "application/x-ndjson",
     dagId,
     expanded,
     logLevelFilters,
@@ -209,7 +210,7 @@ export const useLogs = (
   );
 
   const parsedData = parseLogs({
-    data: data?.content ?? [],
+    data: parseStreamingLogContent(data),
     expanded,
     logLevelFilters,
     showSource,
