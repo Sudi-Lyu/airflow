@@ -18,7 +18,7 @@
  */
 import { Box, Code, VStack, IconButton } from "@chakra-ui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";  
 import { useHotkeys } from "react-hotkeys-hook";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 
@@ -75,7 +75,8 @@ const ScrollToButton = ({
 
 export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }: Props) => {
   const hash = location.hash.replace("#", "");
-  const parentRef = useRef(null);
+  const parentRef = useRef<HTMLDivElement | null>(null);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const rowVirtualizer = useVirtualizer({
     count: parsedLogs.length,
     estimateSize: () => 20,
@@ -90,16 +91,112 @@ export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }:
     return parsedLogs.length > 0 && contentHeight > containerHeight;
   }, [rowVirtualizer, parsedLogs]);
 
+  useEffect(() => {
+    if (isFirstLoad && !isLoading && parsedLogs.length > 0 && !hash) {
+      handleScrollTo("bottom");
+      setIsFirstLoad(false);
+    }
+  }, [isLoading, parsedLogs.length, hash, isFirstLoad]);
+
+
   useLayoutEffect(() => {
-    if (location.hash && !isLoading) {
-      rowVirtualizer.scrollToIndex(Math.min(Number(hash) + 5, parsedLogs.length - 1));
+    if (!location.hash || isLoading || parsedLogs.length === 0) {
+      return;
+    }
+
+    const targetIndex = Math.max(0, Math.min(parsedLogs.length - 1, Number(hash) || 0));
+    const el = parentRef.current;
+
+    const total = rowVirtualizer.getTotalSize();
+    const clientH = el?.clientHeight ?? 0;
+
+    const vItem = rowVirtualizer.getVirtualItems().find((virtualRow) => virtualRow.index === targetIndex);
+    const approxPerItem = 20;
+    const anchor = vItem?.start ?? targetIndex * approxPerItem;
+
+    const offset = Math.max(0, Math.min(total - clientH, anchor));
+
+    if (el) {
+      if (typeof rowVirtualizer.scrollToOffset === "function") {
+        try {
+          rowVirtualizer.scrollToOffset(offset);
+        } catch {
+          rowVirtualizer.scrollToIndex(targetIndex, { align: "start" });
+        }
+      } else {
+        rowVirtualizer.scrollToIndex(targetIndex, { align: "start" });
+      }
+
+      el.scrollTop = offset;
+
+      requestAnimationFrame(() => {
+        el.scrollTop = offset;
+      });
+    } else {
+      rowVirtualizer.scrollToIndex(targetIndex, { align: "start" });
     }
   }, [isLoading, rowVirtualizer, hash, parsedLogs]);
 
   const handleScrollTo = (to: "bottom" | "top") => {
-    if (parsedLogs.length > 0) {
-      rowVirtualizer.scrollToIndex(to === "bottom" ? parsedLogs.length - 1 : 0);
+    if (parsedLogs.length === 0) {
+      return;
     }
+
+    const el = rowVirtualizer.scrollElement ?? parentRef.current;
+
+    if (!el) {
+      return;
+    }
+
+    if (to === "top") {
+      if (typeof rowVirtualizer.scrollToOffset === "function") {
+        try {
+          rowVirtualizer.scrollToOffset(0);
+        } catch {
+          rowVirtualizer.scrollToIndex(0, { align: "start" });
+        }
+      } else {
+        rowVirtualizer.scrollToIndex(0, { align: "start" });
+      }
+      el.scrollTop = 0;
+      requestAnimationFrame(() => {
+        el.scrollTop = 0;
+      });
+
+      return;
+    }
+
+    // === bottom === (instant jump even for huge lists)
+    const total = rowVirtualizer.getTotalSize();
+    const clientH = el.clientHeight || 0;
+    const offset = Math.max(0, Math.floor(total - clientH));
+
+    // First tell the virtualizer where we want to be
+    if (typeof rowVirtualizer.scrollToOffset === "function") {
+      try {
+        rowVirtualizer.scrollToOffset(offset);
+      } catch {
+        rowVirtualizer.scrollToIndex(parsedLogs.length - 1, { align: "end" });
+      }
+    } else {
+      rowVirtualizer.scrollToIndex(parsedLogs.length - 1, { align: "end" });
+    }
+
+    el.scrollTop = offset;
+
+    requestAnimationFrame(() => {
+      el.scrollTop = offset;
+      requestAnimationFrame(() => {
+        el.scrollTop = offset;
+        const lastItem = el.querySelector<HTMLElement>(
+          `[data-testid="virtualized-item-${parsedLogs.length - 1}"]`,
+        );
+
+        if (lastItem) {
+          lastItem.scrollIntoView({ behavior: "auto", block: "end" });
+        }
+      });
+    });
   };
 
   useHotkeys("mod+ArrowDown", () => handleScrollTo("bottom"), { enabled: !isLoading });
@@ -109,15 +206,10 @@ export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }:
     <Box display="flex" flexDirection="column" flexGrow={1} h="100%" minHeight={0} position="relative">
       <ErrorAlert error={error ?? logError} />
       <ProgressBar size="xs" visibility={isLoading ? "visible" : "hidden"} />
-      <Code
-        css={{
-          "& *::selection": {
-            bg: "blue.subtle",
-          },
-        }}
-        data-testid="virtualized-list"
+      <Box
+        data-testid="virtual-scroll-container"
         flexGrow={1}
-        h="auto"
+        minHeight={0}
         overflow="auto"
         position="relative"
         py={3}
@@ -125,24 +217,43 @@ export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }:
         textWrap={wrap ? "pre" : "nowrap"}
         width="100%"
       >
-        <VStack alignItems="flex-start" gap={0} h={`${rowVirtualizer.getTotalSize()}px`}>
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => (
-            <Box
-              data-index={virtualRow.index}
-              data-testid={`virtualized-item-${virtualRow.index}`}
-              key={virtualRow.key}
-              left={0}
-              position="absolute"
-              ref={rowVirtualizer.measureElement}
-              top={0}
-              transform={`translateY(${virtualRow.start}px)`}
-              width={wrap ? "100%" : "max-content"}
-            >
-              {parsedLogs[virtualRow.index] ?? undefined}
-            </Box>
-          ))}
-        </VStack>
-      </Code>
+        <Code
+          css={{
+            "& *::selection": { bg: "blue.subtle" },
+          }}
+          data-testid="virtualized-list"
+          display="block"
+          textWrap={wrap ? "pre" : "nowrap"}
+          width="100%"
+        >
+          <VStack
+            alignItems="flex-start"
+            gap={0}
+            h={`${rowVirtualizer.getTotalSize()}px`}
+            position="relative"
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+              <Box
+                _ltr={{ left: 0, right: "auto" }}
+                _rtl={{ left: "auto", right: 0 }}
+                bgColor={
+                  Boolean(hash) && virtualRow.index === Number(hash) - 1 ? "blue.emphasized" : "transparent"
+                }
+                data-index={virtualRow.index}
+                data-testid={`virtualized-item-${virtualRow.index}`}
+                key={virtualRow.key}
+                position="absolute"
+                ref={rowVirtualizer.measureElement}
+                top={0}
+                transform={`translateY(${virtualRow.start}px)`}
+                width={wrap ? "100%" : "max-content"}
+              >
+                {parsedLogs[virtualRow.index] ?? undefined}
+              </Box>
+            ))}
+          </VStack>
+        </Code>
+      </Box>
 
       {showScrollButtons ? (
         <>
