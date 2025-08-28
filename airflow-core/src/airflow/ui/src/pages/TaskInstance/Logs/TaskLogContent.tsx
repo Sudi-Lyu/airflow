@@ -76,7 +76,6 @@ const ScrollToButton = ({
 export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }: Props) => {
   const hash = location.hash.replace("#", "");
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const rowVirtualizer = useVirtualizer({
     count: parsedLogs.length,
     estimateSize: () => 20,
@@ -92,11 +91,10 @@ export const TaskLogContent = ({ error, isLoading, logError, parsedLogs, wrap }:
   }, [rowVirtualizer, parsedLogs]);
 
   useEffect(() => {
-    if (isFirstLoad && !isLoading && parsedLogs.length > 0 && !hash) {
+    if (!isLoading && parsedLogs.length > 0 && !hash) {
       handleScrollTo("bottom");
-      setIsFirstLoad(false);
     }
-  }, [isLoading, parsedLogs.length, hash, isFirstLoad]);
+  }, [isLoading, parsedLogs.length, hash]);
 
 
   useLayoutEffect(() => {
